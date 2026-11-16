@@ -1,0 +1,42 @@
+{
+  "_note": "Цены за 1 млн токенов в долларах США. input и output — то, по чему считает агент; для DeepSeek взята верхняя оценка: пиковые часы и без кэша. Остальные поля — для справки. Проверено 2026-11-05 по официальным страницам из source.",
+  "checked": "2026-11-05",
+  "models": {
+    "claude-opus-5-5": {
+      "input": 4.0,
+      "output": 20.0,
+      "cache_read": 0.2,
+      "cache_write_5m": 5.0,
+      "cache_write_1h": 8.0,
+      "source": "https://platform.claude.com/docs/en/models/opus-5-5/overview"
+    },
+    "claude-sonnet-5-5": {
+      "input": 2.0,
+      "output": 10.0,
+      "source": "https://platform.claude.com/docs/en/models/opus-5-5/overview"
+    },
+    "claude-haiku-5-5": {
+      "input": 0.1,
+      "output": 0.5,
+      "_note": "на странице указано «от»",
+      "source": "https://platform.claude.com/docs/en/models/opus-5-5/overview"
+    },
+    "deepseek-flash": {
+      "input": 0.3,
+      "output": 1.2,
+      "input_cache_hit_peak": 0.006,
+      "input_offpeak": 0.15,
+      "output_offpeak": 0.6,
+      "input_cache_hit_offpeak": 0.003,
+      "_note": "DeepSeek-V4.1-Flash. Пиковые часы 01:00–04:00 и 06:00–10:00 UTC по будням, вне пика цены вдвое ниже.",
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/"
+    },
+    "deepseek-v4-pro": {
+      "input": 1.32,
+      "output": 3.96,
+      "input_offpeak": 0.66,
+      "output_offpeak": 1.98,
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/"
+    }
+  }
+}

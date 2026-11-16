@@ -1,0 +1,6 @@
+{
+  "video_max_minutes": 30,
+  "audio_max_minutes": 90,
+  "audio_languages": ["ru", "en"],
+  "_note": "черновые границы, уточним замером"
+}

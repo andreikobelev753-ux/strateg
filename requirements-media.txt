@@ -1,0 +1,5 @@
+# Проверено 2026-11-05 на macOS, Python 3.14: av 16 и новее несовместим
+# с faster-whisper 1.2.1 (ошибка metadata_errors при открытии аудио).
+faster-whisper==1.2.1
+av>=12,<16
+scenedetect

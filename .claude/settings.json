@@ -1,0 +1,23 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 strateg.py status --brief"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python3 strateg.py:*)",
+      "Bash(python3 tools/:*)",
+      "Bash(python3 projects/:*)",
+      "Bash(open projects/:*)",
+      "Edit(projects/**)"
+    ]
+  }
+}

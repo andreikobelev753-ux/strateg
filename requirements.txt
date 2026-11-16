@@ -1,0 +1,4 @@
+# версии закрепим после проверки
+markitdown
+trafilatura
+pandas

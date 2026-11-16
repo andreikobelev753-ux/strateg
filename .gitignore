@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+doctor.json
+*.part
+projects/*
+!projects/demo/
+!projects/_template/
+!projects/train-*/
+!projects/ds-*/
+.DS_Store

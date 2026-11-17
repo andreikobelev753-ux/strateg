@@ -22,7 +22,9 @@
       "executor": "helper",
       "provider": "deepseek",
       "model": "deepseek-flash",
-      "fallback": "head"
+      "fallback": "head",
+      "fallback_subagent": "persona",
+      "fallback_subagent_model": "sonnet"
     },
     "classify_request": {
       "executor": "head"
@@ -40,5 +42,5 @@
       "executor": "head"
     }
   },
-  "_note": "helper — вспомогательная модель через tools/llm.py, head — головная модель среды. Если ключа нет или ответ не прошёл проверку, задачу делает головная модель. Имя модели DeepSeek — с официальной страницы цен, проверено 2026-11-05."
+  "_note": "helper — вспомогательная модель через tools/llm.py, head — головная модель среды. Если ключа нет или ответ не прошёл проверку, задачу делает головная модель; synthetic_persona без ключа — субагент persona на Sonnet (поле model в agents/persona.md): ролевая игра не требует головной модели и стоит вдвое дешевле. Исследователь и критик остаются на головной модели: от них зависит качество выводов. Имя модели DeepSeek — с официальной страницы цен, проверено 2026-11-05."
 }

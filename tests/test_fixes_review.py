@@ -170,5 +170,19 @@ class ReviewItem13OnePager(unittest.TestCase):
         self.assertNotIn("[^1]", html)
 
 
+class ReviewItem09Routing(unittest.TestCase):
+    """№9: респондент на Sonnet, исследователь и критик — на головной модели."""
+
+    def _front(self, rel: str) -> str:
+        text = _read(rel)
+        return text.split("---", 2)[1]
+
+    def test_models(self) -> None:
+        for base in ("agents", ".claude/agents"):
+            self.assertIn("\nmodel: sonnet\n", self._front(f"{base}/persona.md"))
+            self.assertNotIn("model:", self._front(f"{base}/researcher.md"))
+            self.assertNotIn("model:", self._front(f"{base}/critic.md"))
+
+
 if __name__ == "__main__":
     unittest.main()

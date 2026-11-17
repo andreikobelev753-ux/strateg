@@ -146,9 +146,16 @@ class TemplateTests(unittest.TestCase):
 
     def test_state_files(self) -> None:
         self.assertEqual((TEMPLATE / "state" / "journal.jsonl").read_text(encoding="utf-8"), "")
+        import registry
         for name in ("sources.md", "claims.md", "decisions.md"):
             text = (TEMPLATE / "state" / name).read_text(encoding="utf-8").strip()
-            self.assertEqual(len(text.splitlines()), 1, name)
+            self.assertTrue(text.splitlines()[0].startswith("# "), name)
+            # шапка с форматом не должна разбираться как запись реестра
+            self.assertEqual(registry.parse_file(TEMPLATE / "state" / name), [], name)
+        for name in ("sources.md", "claims.md"):
+            text = (TEMPLATE / "state" / name).read_text(encoding="utf-8")
+            self.assertIn("Формат записи", text, name)
+        self.assertEqual(registry.check_project(TEMPLATE), [])
 
     def test_state_template_parses(self) -> None:
         text = strateg._state_template("demo", "2026-11-05")

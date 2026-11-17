@@ -131,5 +131,16 @@ class ReviewItem11ExtractDedup(unittest.TestCase):
         self.assertEqual(self._ids(), ["SRC-01"])
 
 
+class ReviewItem12Baseline(unittest.TestCase):
+    """№12: база сравнения без затронутых когорт; критик проверяет расчёты."""
+
+    def test_skill_and_critic(self) -> None:
+        self.assertIn("не включает затронутые когорты", _read("skills/data-analysis/SKILL.md"))
+        for rel in ("agents/critic.md", ".claude/agents/critic.md"):
+            text = _read(rel)
+            self.assertIn("Проверка расчётов", text, rel)
+            self.assertIn("база сравнения", text, rel)
+
+
 if __name__ == "__main__":
     unittest.main()

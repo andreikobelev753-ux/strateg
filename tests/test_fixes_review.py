@@ -238,5 +238,50 @@ class ReviewItem10Screenshot(unittest.TestCase):
         self.assertIn("скриншот: materials/screens/tariffs.png", sources)
 
 
+class ReviewItem16SourceLists(unittest.TestCase):
+    """№16: extract web проверяет allow/deny до загрузки."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.project = fixtures.make_bare_project(Path(self._tmp.name))
+
+    def _policy(self, url, project_sources=None, config=None):
+        import json
+        import common
+        if project_sources is not None:
+            (self.project / "project.json").write_text(json.dumps({"sources": project_sources}), encoding="utf-8")
+        config_dir = Path(self._tmp.name) / "config"
+        config_dir.mkdir(exist_ok=True)
+        (config_dir / "sources.json").write_text(json.dumps(config or {"allow": [], "deny": []}), encoding="utf-8")
+        with mock.patch.object(common, "CONFIG_DIR", config_dir):
+            return common.source_policy(self.project, url)
+
+    def test_empty_lists_allow_everything(self) -> None:
+        self.assertEqual(self._policy("https://example.com/a"), "")
+
+    def test_deny_domain_and_subdomain(self) -> None:
+        config = {"allow": [], "deny": ["bad.example"]}
+        self.assertIn("запрещённых", self._policy("https://news.bad.example/x", config=config))
+        self.assertEqual(self._policy("https://good.example/x", config=config), "")
+
+    def test_allow_list_and_project_override(self) -> None:
+        self.assertIn("разрешённых", self._policy("https://other.ru", project_sources=["rosstat.gov.ru"]))
+        self.assertEqual(self._policy("https://www.rosstat.gov.ru/x", project_sources=["rosstat.gov.ru"]), "")
+        self.assertIn("запрещённых", self._policy(
+            "https://a.ru/private/1", project_sources={"allow": [], "deny": ["https://a.ru/private"]}))
+
+    def test_web_refuses_before_download(self) -> None:
+        import web
+        err = io.StringIO()
+        with mock.patch.object(web, "load_source", side_effect=AssertionError("сеть не нужна")), \
+                mock.patch("common.source_policy", return_value="адрес в списке запрещённых (x)"), \
+                contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = web.main([str(self.project), "https://x.example/page"])
+        self.assertEqual(code, 4)
+        self.assertIn("отказ", err.getvalue())
+        self.assertEqual(self.project.joinpath("state", "journal.jsonl").read_text(encoding="utf-8"), "")
+
+
 if __name__ == "__main__":
     unittest.main()

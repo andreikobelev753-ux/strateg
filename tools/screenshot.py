@@ -37,6 +37,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not project.is_dir() or not args.url.startswith(("http://", "https://")):
         print("ошибка: нужен существующий проект и адрес http(s)://", file=sys.stderr)
         return 2
+    blocked = common.source_policy(project, args.url)
+    if blocked:
+        print(f"отказ: {blocked}. Списки — config/sources.json и «sources» в project.json.", file=sys.stderr)
+        return 4
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:

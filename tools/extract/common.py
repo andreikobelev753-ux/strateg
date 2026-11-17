@@ -7,7 +7,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sys
+from urllib.parse import urlparse
 from datetime import date
 from pathlib import Path
 from typing import Any, Iterable, List, Optional
@@ -44,6 +46,57 @@ def notes_for(lines: Iterable[int]) -> str:
 def _one_line(value: str) -> str:
     """Схлопывает переводы строк, чтобы запись реестра осталась одной строкой."""
     return " ".join(str(value or "").split())
+
+
+CONFIG_DIR = TOOLS_DIR.parent / "config"
+
+
+def _load_lists(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, (dict, list)) else {}
+
+
+def _matches(url: str, host: str, pattern: str) -> bool:
+    """Шаблон: домен (с поддоменами), *.домен или начало адреса с http(s)://."""
+    pattern = str(pattern).strip().lower()
+    if not pattern:
+        return False
+    if pattern.startswith(("http://", "https://")):
+        return url.lower().startswith(pattern)
+    pattern = pattern.lstrip("*.").rstrip("/")
+    return host == pattern or host.endswith("." + pattern)
+
+
+def source_policy(project_dir: Any, url: str) -> str:
+    """Проверяет адрес по спискам config/sources.json и project.json («sources»).
+
+    Возвращает причину запрета или пустую строку. deny сильнее allow; пустой allow —
+    любые открытые источники. В project.json «sources» — {"allow": [...], "deny": [...]}
+    или просто список разрешённых сайтов.
+    """
+    host = (urlparse(url).hostname or "").lower()
+    allow: List[str] = []
+    deny: List[str] = []
+    base = _load_lists(CONFIG_DIR / "sources.json")
+    if isinstance(base, dict):
+        allow += list(base.get("allow") or [])
+        deny += list(base.get("deny") or [])
+    project_json = _load_lists(Path(project_dir) / "project.json")
+    own = project_json.get("sources") if isinstance(project_json, dict) else None
+    if isinstance(own, list):
+        allow += [item for item in own if isinstance(item, str)]
+    elif isinstance(own, dict):
+        allow += list(own.get("allow") or [])
+        deny += list(own.get("deny") or [])
+    for pattern in deny:
+        if _matches(url, host, pattern):
+            return f"адрес в списке запрещённых ({pattern})"
+    if allow and not any(_matches(url, host, pattern) for pattern in allow):
+        return "адреса нет в списке разрешённых: " + ", ".join(map(str, allow[:5]))
+    return ""
 
 
 def project_relative(project_dir: Any, path: Any) -> str:

@@ -119,13 +119,18 @@ def trafilatura_text(html: str) -> Optional[str]:
     return None
 
 
-def load_source(source: str) -> Tuple[bytes, str, str]:
+def load_source(source: str, policy_project: Optional[Path] = None) -> Tuple[bytes, str, str]:
     """Возвращает (сырые байты, расшифрованный HTML, адрес)."""
     if source.lower().startswith(("http://", "https://")):
         request = urllib.request.Request(source, headers={"User-Agent": "strateg-night/1.0"})
         with urllib.request.urlopen(request, timeout=30) as response:
+            final = response.geturl() or source
             raw = response.read()
             charset = response.headers.get_content_charset() or "utf-8"
+        if final != source and policy_project is not None:
+            blocked = common.source_policy(policy_project, final)
+            if blocked:  # перенаправление на запрещённый сайт
+                raise OSError(f"перенаправление на {final}: {blocked}")
         return raw, raw.decode(charset, errors="replace"), source
     path = Path(source)
     raw = path.read_bytes()
@@ -179,6 +184,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     is_url = args.source.lower().startswith(("http://", "https://"))
+    if is_url:
+        blocked = common.source_policy(project, args.source)
+        if blocked:
+            print(f"отказ: {blocked}. Списки — config/sources.json и «sources» в project.json; "
+                  "поменять их может только пользователь.", file=sys.stderr)
+            return 4
     where = args.source if is_url else _project_relative(project, args.source)
     digest = "" if is_url else common.file_digest(args.source)
     existing = common.find_existing_source(project, where, digest)
@@ -188,7 +199,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     key = f"extract:{args.source}" if is_url else common.step_key("extract", project, Path(args.source))
     common.start(project, "extract", key, TOOL, note=args.source)
     try:
-        raw, html, address = load_source(args.source)
+        raw, html, address = load_source(args.source, project)
     except (OSError, urllib.error.URLError) as exc:
         common.error(project, "extract", key, TOOL, note=f"ошибка загрузки: {exc}"[:300])
         print(f"ошибка загрузки: {exc}", file=sys.stderr)

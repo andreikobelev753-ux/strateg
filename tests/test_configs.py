@@ -116,7 +116,7 @@ class EnvFilesTests(unittest.TestCase):
         for name, expected in files.items():
             lines = (ROOT / name).read_text(encoding="utf-8").splitlines()
             self.assertTrue(lines[0].startswith("#"), name)
-            packages = {re.split(r"[<>=!~\s]", line.strip())[0]
+            packages = {re.split(r"[\[<>=!~\s]", line.strip())[0]
                         for line in lines if line.strip() and not line.startswith("#")}
             self.assertEqual(packages, expected)
 

@@ -8,6 +8,7 @@ markitdown). Результат — extracted/SRC-xx.md, запись в state/s
 
 Простые текстовые файлы (.md, .txt) читаются напрямую, без markitdown.
 Для остальных форматов без markitdown — код 3 и подсказка про setup.
+.docx при любой ошибке markitdown (или без него) читается встроенным разборщиком.
 
 Пример:
   python3 tools/extract/docs.py projects/demo materials/report.pdf
@@ -72,6 +73,13 @@ def convert_document(path: Path) -> str:
     raise RuntimeError("markitdown не вернул текст документа")
 
 
+def _builtin_docx_text(paragraphs: List[Any]) -> str:
+    """Текст .docx встроенным разборщиком (абзацы и таблицы из word/document.xml)."""
+    if not paragraphs:
+        raise RuntimeError("в .docx не найден текст")
+    return "\n\n".join(line for line, _hidden in paragraphs)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Парсер команды извлечения документа."""
     parser = argparse.ArgumentParser(
@@ -111,13 +119,25 @@ def main(argv: Optional[List[str]] = None) -> int:
     key = common.step_key("extract", project, source_file)
     common.start(project, "extract", key, TOOL, note=str(source_file))
     paragraphs = common.scan.docx_paragraphs(source_file) if is_docx else []
+    fallback_reason = ""
     try:
         if builtin_docx:
-            if not paragraphs:
-                raise RuntimeError("в .docx не найден текст")
-            text = "\n\n".join(line for line, _hidden in paragraphs)
+            text = _builtin_docx_text(paragraphs)
         else:
-            text = convert_document(source_file)
+            try:
+                text = convert_document(source_file)
+            except Exception as exc:  # noqa: BLE001 - markitdown падает по-разному
+                if not is_docx:
+                    raise
+                # Любая ошибка markitdown на .docx (нет дополнения [docx],
+                # MissingDependencyException, битый стиль) — встроенный разборщик.
+                fallback_reason = f"{type(exc).__name__}: {str(exc)[:200]}"
+                try:
+                    text = _builtin_docx_text(paragraphs)
+                except Exception as builtin_exc:  # noqa: BLE001
+                    raise RuntimeError(f"markitdown: {exc}; встроенный разборщик: "
+                                       f"{builtin_exc}") from exc
+                builtin_docx = True
     except Exception as exc:  # noqa: BLE001 - конвертер может падать по-разному
         common.error(project, "extract", key, TOOL, note=str(exc)[:300])
         print(f"ошибка конвертации: {exc}", file=sys.stderr)
@@ -152,6 +172,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"Источник: {source_id}")
     if builtin_docx:
         print("Разобрано встроенным разборщиком .docx (без markitdown): только текст абзацев и таблиц.")
+        if fallback_reason:
+            print(f"Причина: markitdown не справился ({fallback_reason}).")
     if hidden:
         print(f"Внимание: скрытый текст в документе — {len(hidden)} абзац(ев). Это может быть подложенная команда.")
     if masked:

@@ -74,6 +74,29 @@ class DocsTests(unittest.TestCase):
         self.assertIn("подозрительные строки", sources)
         self.assertIn("скрытый текст", out)
 
+    def test_docx_falls_back_when_markitdown_fails(self) -> None:
+        """№4 ревью: markitdown без [docx] бросает MissingDependencyException — берём встроенный разборщик."""
+        import zipfile
+        source = self.root / "zapiska.docx"
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+            "<w:p><w:r><w:t>Подключений 1 700, платящих 810.</w:t></w:r></w:p>"
+            "</w:body></w:document>"
+        )
+        with zipfile.ZipFile(source, "w") as archive:
+            archive.writestr("word/document.xml", body)
+        broken = fake_markitdown(error="MissingDependencyException: DocxConverter needs mammoth")
+        with mock.patch.dict(sys.modules, {"markitdown": broken}):
+            code, out, err = self._run(source)
+        self.assertEqual(code, 0, err)
+        text = (self.project / "extracted" / "SRC-01.md").read_text(encoding="utf-8")
+        self.assertIn("Подключений 1 700, платящих 810.", text)
+        self.assertIn("встроенным разборщиком", out)
+        self.assertIn("MissingDependencyException", out)
+        statuses = [event["status"] for event in journal.read_events(self.project)]
+        self.assertEqual(statuses, ["start", "done"])
+
     def test_missing_markitdown(self) -> None:
         self.source = self.root / "report.pdf"
         self.source.write_bytes(b"%PDF-1.4 fake")

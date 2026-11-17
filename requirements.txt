@@ -1,4 +1,4 @@
 # версии закрепим после проверки
-markitdown
+markitdown[docx,pdf,pptx,xlsx]
 trafilatura
 pandas

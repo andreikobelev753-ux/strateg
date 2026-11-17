@@ -347,5 +347,32 @@ class ReviewItem19DocsAndCode(unittest.TestCase):
             self.assertEqual(strateg._due_reviews(project), [("DEC-01", "2026-01-01")])
 
 
+class ReviewItem22RolesAndNotes(unittest.TestCase):
+    """№22: роли пользователя и получателя раздельно; подписи примечаний не накладываются."""
+
+    def test_roles(self) -> None:
+        import json
+        payload = json.loads(_read("projects/_template/project.json"))
+        self.assertIn("user_role", payload)
+        self.assertIn("recipient", payload)
+        self.assertIn("user_role", _read("skills/framing/SKILL.md"))
+        self.assertIn("user_role", _read("AGENTS.md"))
+
+    def test_notes_do_not_overlap(self) -> None:
+        import re
+        import chart
+        spec = {"id": "t", "type": "line", "title": "T", "unit": "%",
+                "x": ["май", "июн", "июл", "авг", "сен"],
+                "series": [{"name": "Android", "values": [60, 58, 50, 45, 44]}],
+                "notes": [{"x": "июл", "text": "релиз 4.2 для Android"},
+                          {"x": "авг", "text": "старт акции «месяц за 1 ₽»"},
+                          {"x": "сен", "text": "сезон"}]}
+        svg = "".join(chart.render_line(spec))
+        ys = [float(y) for y in re.findall(r'<text class="note" x="[\d.]+" y="([\d.]+)"', svg)]
+        self.assertEqual(len(ys), 3)
+        self.assertGreater(len(set(ys)), 1)  # близкие подписи разнесены по высоте
+        self.assertTrue(all(y > 0 for y in ys))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -354,19 +354,49 @@ def _x_labels(frame: Frame, centers: Sequence[float], labels: Sequence[Any], ban
     return parts
 
 
-def _notes(spec: Dict[str, Any], frame: Frame, centers: Sequence[float], labels: Sequence[Any]) -> List[str]:
+NOTE_ROW = 14.0
+
+
+def _note_layout(spec: Dict[str, Any], frame: Frame, centers: Sequence[float],
+                 labels: Sequence[Any]) -> List[Tuple[float, str, float, int, str]]:
+    """Раскладывает подписи примечаний по рядам, чтобы они не накладывались.
+
+    Возвращает [(x линии, выравнивание, x текста, ряд, текст)]; ряд 0 — ближе к графику.
+    """
     index = {str(label): number for number, label in enumerate(labels)}
-    parts = []
+    rows: List[List[Tuple[float, float]]] = []
+    layout = []
     for note in spec.get("notes") or []:
         if not isinstance(note, dict) or str(note.get("x")) not in index:
             continue
         center = centers[index[str(note.get("x"))]]
+        text = str(note.get("text", ""))
         anchor = "start" if center < (frame.left + frame.right) / 2 else "end"
-        shift = 5 if anchor == "start" else -5
+        x = center + (5 if anchor == "start" else -5)
+        width = len(text) * CHAR_W
+        span = (x, x + width) if anchor == "start" else (x - width, x)
+        row = 0
+        while row < len(rows) and any(span[0] < end + 8 and start < span[1] + 8 for start, end in rows[row]):
+            row += 1
+        if row == len(rows):
+            rows.append([])
+        rows[row].append(span)
+        layout.append((center, anchor, x, row, text))
+    return layout
+
+
+def _note_rows(spec: Dict[str, Any], frame: Frame, centers: Sequence[float], labels: Sequence[Any]) -> int:
+    return max((item[3] + 1 for item in _note_layout(spec, frame, centers, labels)), default=0)
+
+
+def _notes(spec: Dict[str, Any], frame: Frame, centers: Sequence[float], labels: Sequence[Any]) -> List[str]:
+    parts = []
+    for center, anchor, x, row, text in _note_layout(spec, frame, centers, labels):
+        y = frame.top - 8 - row * NOTE_ROW
         parts.append(f'<line class="noteline" x1="{center:.1f}" x2="{center:.1f}" '
-                     f'y1="{frame.top - 4:.1f}" y2="{frame.bottom:.1f}"/>')
-        parts.append(f'<text class="note" x="{center + shift:.1f}" y="{frame.top - 8:.1f}" '
-                     f'text-anchor="{anchor}">{_esc(note.get("text", ""))}</text>')
+                     f'y1="{y + 4:.1f}" y2="{frame.bottom:.1f}"/>')
+        parts.append(f'<text class="note" x="{x:.1f}" y="{y:.1f}" '
+                     f'text-anchor="{anchor}">{_esc(text)}</text>')
     return parts
 
 
@@ -405,6 +435,10 @@ def render_line(spec: Dict[str, Any]) -> List[str]:
     span = width - 2 * pad
     centers = [frame.left + pad + (span * index / (count - 1) if count > 1 else span / 2)
                for index in range(count)]
+    extra_rows = _note_rows(spec, frame, centers, labels) - 1
+    if extra_rows > 0:  # подписи в несколько рядов — место сверху (по оси x ничего не меняется)
+        frame = Frame(values, bool(spec.get("zero", True)), unit, right_pad,
+                      30.0 + extra_rows * NOTE_ROW, 42.0)
     step = span / (count - 1) if count > 1 else width
     parts = frame.axes() + _notes(spec, frame, centers, labels)
     ends = []

@@ -288,6 +288,7 @@ def cmd_new(name: str) -> int:
             "question": "",
             "goal": "",
             "success_metric": "",
+            "user_role": "",
             "recipient": "",
             "constraints": "",
             "mode": "",

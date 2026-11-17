@@ -5,6 +5,7 @@
   "question": "",
   "goal": "",
   "success_metric": "",
+  "user_role": "",
   "recipient": "",
   "constraints": "",
   "mode": "",

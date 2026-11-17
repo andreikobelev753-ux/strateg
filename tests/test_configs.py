@@ -127,10 +127,10 @@ class TemplateTests(unittest.TestCase):
     def test_project_json(self) -> None:
         payload = load_json(TEMPLATE / "project.json")
         expected = {"name", "created", "request", "question", "goal", "success_metric",
-                    "recipient", "constraints", "mode", "sources", "modules"}
+                    "user_role", "recipient", "constraints", "mode", "sources", "modules"}
         self.assertEqual(set(payload), expected)
         for key in ("name", "created", "request", "question", "goal", "success_metric",
-                    "recipient", "constraints", "mode"):
+                    "user_role", "recipient", "constraints", "mode"):
             self.assertEqual(payload[key], "", key)
         self.assertEqual(payload["sources"], [])
         self.assertEqual(payload["modules"], [])

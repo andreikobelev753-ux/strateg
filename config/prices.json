@@ -1,6 +1,6 @@
 {
-  "_note": "Цены за 1 млн токенов в долларах США. input и output — то, по чему считает агент; для DeepSeek взята верхняя оценка: пиковые часы и без кэша. Остальные поля — для справки. Проверено 2026-11-05 по официальным страницам из source.",
-  "checked": "2026-11-05",
+  "_note": "Цены за 1 млн токенов в долларах США. input и output — то, по чему считает агент; cache_read и cache_write_* — для расхода из транскриптов Claude Code (tools/cost.py). Для DeepSeek взята верхняя оценка: пиковые часы и без кэша. Цены Claude сверены 2026-11-17 с https://platform.claude.com/docs/en/about-claude/pricing и страницами моделей из source; DeepSeek — 2026-11-05.",
+  "checked": "2026-11-17",
   "models": {
     "claude-opus-5-5": {
       "input": 4.0,
@@ -8,18 +8,31 @@
       "cache_read": 0.2,
       "cache_write_5m": 5.0,
       "cache_write_1h": 8.0,
-      "source": "https://platform.claude.com/docs/en/models/opus-5-5/overview"
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
     },
     "claude-sonnet-5-5": {
       "input": 2.0,
       "output": 10.0,
-      "source": "https://platform.claude.com/docs/en/models/opus-5-5/overview"
+      "cache_read": 0.1,
+      "cache_write_5m": 2.5,
+      "cache_write_1h": 4.0,
+      "source": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview"
     },
     "claude-haiku-5-5": {
       "input": 0.1,
       "output": 0.5,
-      "_note": "на странице указано «от»",
-      "source": "https://platform.claude.com/docs/en/models/opus-5-5/overview"
+      "cache_read": 0.01,
+      "cache_write_5m": 0.125,
+      "cache_write_1h": 0.2,
+      "over_100k": {
+        "input": 0.5,
+        "output": 2.5,
+        "cache_read": 0.05,
+        "cache_write_5m": 0.625,
+        "cache_write_1h": 1.0
+      },
+      "_note": "Две ступени по длине запроса: до 100 000 токенов (основные поля) и больше (over_100k). Агент считает по нижней ступени — для запросов длиннее 100 000 токенов это нижняя оценка.",
+      "source": "https://platform.claude.com/docs/en/models/haiku-5-5/overview"
     },
     "deepseek-flash": {
       "input": 0.3,

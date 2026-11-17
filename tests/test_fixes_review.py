@@ -374,5 +374,17 @@ class ReviewItem22RolesAndNotes(unittest.TestCase):
         self.assertTrue(all(y > 0 for y in ys))
 
 
+class ReviewPricesSources(unittest.TestCase):
+    """Цены Sonnet и Haiku ссылаются на свои страницы, а не на страницу Opus."""
+
+    def test_sources(self) -> None:
+        import json
+        models = json.loads(_read("config/prices.json"))["models"]
+        self.assertIn("sonnet-5-5", models["claude-sonnet-5-5"]["source"])
+        self.assertIn("haiku-5-5", models["claude-haiku-5-5"]["source"])
+        for name in ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"):
+            self.assertIn("cache_read", models[name], name)
+
+
 if __name__ == "__main__":
     unittest.main()

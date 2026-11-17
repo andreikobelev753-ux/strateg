@@ -2,4 +2,4 @@
 # с faster-whisper 1.2.1 (ошибка metadata_errors при открытии аудио).
 faster-whisper==1.2.1
 av>=12,<16
-scenedetect
+scenedetect>=0.6.4,<0.8

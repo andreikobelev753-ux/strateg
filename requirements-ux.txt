@@ -1,2 +1,2 @@
-# версии закрепим после проверки
-playwright
+# Модуль «интерфейсы»: tools/screenshot.py (sync_api, chromium). Браузер ставит setup --ux.
+playwright>=1.48,<2

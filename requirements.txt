@@ -1,4 +1,6 @@
-# версии закрепим после проверки
-markitdown[docx,pdf,pptx,xlsx]
-trafilatura
-pandas
+# Модуль «документы». Границы версий: нижняя — проверенный API (markitdown.MarkItDown,
+# trafilatura.extract, pandas.read_excel), верхняя — следующая несовместимая версия.
+# markitdown требует Python 3.10+; на 3.9 он не ставится, а .docx читает встроенный разборщик.
+markitdown[docx,pdf,pptx,xlsx]>=0.1.2,<0.2; python_version >= "3.10"
+trafilatura>=1.12,<3
+pandas>=2.2,<4

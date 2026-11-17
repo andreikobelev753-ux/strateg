@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import sys
 from datetime import date
 from pathlib import Path
@@ -45,9 +46,50 @@ def _one_line(value: str) -> str:
     return " ".join(str(value or "").split())
 
 
+def project_relative(project_dir: Any, path: Any) -> str:
+    """«Где» для реестра: путь от папки проекта (materials/…), если файл внутри проекта,
+    иначе путь как есть. Один формат для всех extract-скриптов."""
+    try:
+        return Path(path).resolve().relative_to(Path(project_dir).resolve()).as_posix()
+    except (ValueError, OSError):
+        return str(path)
+
+
+def file_digest(path: Any) -> str:
+    """Короткий отпечаток содержимого файла: sha256:<16 hex>."""
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return "sha256:" + digest.hexdigest()[:16]
+
+
+def find_existing_source(project_dir: Any, where: str = "", digest: str = "") -> dict:
+    """Ищет уже заведённый SRC для того же материала.
+
+    Совпадение — тот же отпечаток содержимого (файл мог переехать) или тот же «Где»
+    у записи без отпечатка (старые записи, адреса страниц). Тот же путь с другим
+    отпечатком — новая версия файла: возвращается {"previous": SRC} без "id".
+    """
+    found: dict = {}
+    for record in registry.parse_file(Path(project_dir) / "state" / "sources.md"):
+        if record["kind"] != "SRC":
+            continue
+        fields = record["fields"]
+        record_digest = fields.get("Хеш", "").strip()
+        same_place = bool(where) and fields.get("Где", "").strip() == where
+        if digest and record_digest == digest:
+            return {"id": record["id"], "by": "отпечаток содержимого"}
+        if same_place and not record_digest:
+            return {"id": record["id"], "by": "путь"}
+        if same_place and digest and record_digest != digest:
+            found = {"previous": record["id"]}
+    return found
+
+
 def append_source(project_dir: Any, source_id: str, what: str, where: str,
-                  type_: str, copy_path: str, notes: str) -> Path:
-    """Дописывает запись источника в state/sources.md."""
+                  type_: str, copy_path: str, notes: str, digest: str = "") -> Path:
+    """Дописывает запись источника в state/sources.md (с отпечатком файла, если он есть)."""
     path = Path(project_dir) / "state" / "sources.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     existing = ""
@@ -63,10 +105,18 @@ def append_source(project_dir: Any, source_id: str, what: str, where: str,
         f"- Дата обращения: {date.today().isoformat()}\n"
         f"- Копия: {_one_line(copy_path)}\n"
         f"- Можно использовать: да\n"
-        f"- Пометки: {_one_line(notes)}\n"
+        + (f"- Хеш: {digest}\n" if digest else "")
+        + f"- Пометки: {_one_line(notes)}\n"
     )
     path.write_text(existing + block, encoding="utf-8")
     return path
+
+
+def report_existing(existing: dict) -> None:
+    """Сообщение о повторном extract: номер уже выдан, повторно не разбираем."""
+    print(f"Уже в реестре: {existing['id']} (совпадение: {existing['by']}). Повторно не разбираю.")
+    print(f"Источник: {existing['id']}")
+    print("Нужна новая версия источника (файл или страница изменились) — добавьте --again.")
 
 
 def step_key(prefix: str, project_dir: Any, path: Any) -> str:

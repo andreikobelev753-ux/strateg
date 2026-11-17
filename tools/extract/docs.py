@@ -88,6 +88,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("project_dir", help="папка проекта")
     parser.add_argument("file", help="исходный документ")
+    parser.add_argument("--again", action="store_true",
+                        help="завести новый SRC, даже если этот файл уже в реестре")
     return parser
 
 
@@ -102,6 +104,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not source_file.is_file():
         print(f"ошибка: файл не найден: {source_file}", file=sys.stderr)
         return 2
+
+    where = common.project_relative(project, source_file)
+    digest = common.file_digest(source_file)
+    existing = common.find_existing_source(project, where, digest)
+    if existing.get("id") and not args.again:
+        common.report_existing(existing)
+        return 0
 
     is_docx = source_file.suffix.lower() == ".docx"
     builtin_docx = False
@@ -158,14 +167,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                      + "; ".join("«" + line[:60] + "»" for line in hidden[:3]))
     if masked:
         notes.append(f"скрыто телефонов и адресов почты: {masked}")
+    if existing.get("previous"):
+        notes.append(f"новая версия файла, прежняя — {existing['previous']}")
     common.append_source(
         project,
         source_id,
         what=f"документ {source_file.name}",
-        where=str(args.file),
+        where=where,
         type_="материал пользователя",
         copy_path=f"extracted/{source_id}.md",
         notes="; ".join(notes) or "—",
+        digest=digest,
     )
     common.done(project, "extract", key, TOOL, note=source_id)
     print(f"Сохранено: {target}")

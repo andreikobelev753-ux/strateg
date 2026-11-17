@@ -159,6 +159,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("project_dir", help="папка проекта")
     parser.add_argument("source", help="URL или путь к сохранённому HTML")
+    parser.add_argument("--again", action="store_true",
+                        help="завести новый SRC, даже если эта страница уже в реестре")
     return parser
 
 
@@ -177,6 +179,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     is_url = args.source.lower().startswith(("http://", "https://"))
+    where = args.source if is_url else _project_relative(project, args.source)
+    digest = "" if is_url else common.file_digest(args.source)
+    existing = common.find_existing_source(project, where, digest)
+    if existing.get("id") and not args.again:
+        common.report_existing(existing)
+        return 0
     key = f"extract:{args.source}" if is_url else common.step_key("extract", project, Path(args.source))
     common.start(project, "extract", key, TOOL, note=args.source)
     try:
@@ -217,7 +225,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                if not is_url and _project_relative(project, address).startswith("materials/")
                else "открытый источник"),
         copy_path=f"extracted/{source_id}.md",
-        notes=common.notes_for(lines),
+        notes=common.notes_for(lines) + (f"; новая версия, прежняя — {existing['previous']}"
+                                          if existing.get("previous") else ""),
+        digest=digest,
     )
     common.done(project, "extract", key, TOOL, note=source_id)
     print(f"Сохранено: {md_path}")

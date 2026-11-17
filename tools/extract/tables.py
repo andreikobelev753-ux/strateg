@@ -287,24 +287,24 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 def _register_source(project: Path, source: Path, profile: str, n_rows: int, n_cols: int) -> str:
-    """Заводит SRC на таблицу, если её ещё нет в реестре; возвращает номер или пустую строку."""
+    """Заводит SRC на таблицу или возвращает уже выданный (тот же путь или содержимое)."""
     try:
         extract_dir = Path(__file__).resolve().parent
         for path in (str(extract_dir.parent), str(extract_dir)):
             if path not in sys.path:
                 sys.path.insert(0, path)
         import common  # noqa: WPS433
-        try:
-            where = source.resolve().relative_to(project.resolve()).as_posix()
-        except ValueError:
-            where = str(source)
-        sources = project / "state" / "sources.md"
-        text = sources.read_text(encoding="utf-8", errors="replace") if sources.exists() else ""
-        if f"- Где: {where}\n" in text:
-            return ""
+        where = common.project_relative(project, source)
+        digest = common.file_digest(source)
+        existing = common.find_existing_source(project, where, digest)
+        if existing.get("id"):
+            print(f"Уже в реестре: {existing['id']} (совпадение: {existing['by']}), новый номер не заводим.")
+            return existing["id"]
+        notes = f"новая версия файла, прежняя — {existing['previous']}" if existing.get("previous") else "—"
         source_id = common.next_source_id(project)
         common.append_source(project, source_id, what=f"таблица {source.name}: {n_rows} строк, {n_cols} столбцов",
-                             where=where, type_="материал пользователя", copy_path=profile, notes="—")
+                             where=where, type_="материал пользователя", copy_path=profile, notes=notes,
+                             digest=digest)
         return source_id
     except Exception:  # noqa: BLE001 — профиль важнее записи в реестр
         return ""

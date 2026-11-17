@@ -94,12 +94,13 @@ class EnvFilesTests(unittest.TestCase):
     def test_env_example(self) -> None:
         text = (ROOT / ".env.example").read_text(encoding="utf-8")
         self.assertIn("DEEPSEEK_API_KEY=", text)
-        self.assertIn("TYPESAFE_API_KEY=", text)
         for line in text.splitlines():
-            if line.startswith("DEEPSEEK_API_KEY=") or line.startswith("TYPESAFE_API_KEY="):
-                self.assertEqual(line.split("=", 1)[1], "")
+            if not line.startswith("#") and "=" in line:
+                self.assertEqual(line.split("=", 1)[1], "", line)  # без значений
         self.assertIn("DeepSeek", text)
-        self.assertIn("TypeSafe", text)
+        # №20 ревью: неподключённая модель Jev и её ключ убраны
+        self.assertNotIn("TYPESAFE", text)
+        self.assertNotIn("Jev", (ROOT / "README.md").read_text(encoding="utf-8"))
 
     def test_gitignore(self) -> None:
         lines = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()

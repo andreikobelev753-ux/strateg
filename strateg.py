@@ -754,6 +754,8 @@ def cmd_setup(media: bool, ux: bool, dry_run: bool) -> int:
         print("План setup (--dry-run), ничего не создаю и не устанавливаю:")
         print(f"  .venv: {'уже есть' if venv.exists() else 'создал бы ' + str(venv)}")
         print(f"  зависимости: установил бы {', '.join(requirements)}")
+        if ux:
+            print("  браузер: python -m playwright install chromium")
         if env_path.exists():
             print("  .env: уже есть — не перезаписываю")
         elif example.exists():
@@ -797,6 +799,12 @@ def cmd_setup(media: bool, ux: bool, dry_run: bool) -> int:
         if result.returncode != 0:
             print(f"ошибка: pip install завершился с кодом {result.returncode}", file=sys.stderr)
             return 1
+        if ux:
+            print("Ставлю браузер для снимков страниц: playwright install chromium")
+            try:
+                subprocess.run([str(python_path), "-m", "playwright", "install", "chromium"], check=False)
+            except OSError as exc:
+                print(f"предупреждение: браузер не установлен ({exc}); снимки страниц недоступны")
     else:
         print("Файлы requirements не найдены — зависимости не ставлю.")
 

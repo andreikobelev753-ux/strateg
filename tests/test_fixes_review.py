@@ -184,5 +184,59 @@ class ReviewItem09Routing(unittest.TestCase):
             self.assertNotIn("model:", self._front(f"{base}/critic.md"))
 
 
+class ReviewItem10Screenshot(unittest.TestCase):
+    """№10: tools/screenshot.py — понятное сообщение без playwright и снимок с фейковым playwright."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.project = fixtures.make_bare_project(Path(self._tmp.name))
+        sys.path.insert(0, str(ROOT / "tools"))
+
+    def _run(self, modules):
+        import screenshot
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.dict(sys.modules, modules), contextlib.redirect_stdout(out), \
+                contextlib.redirect_stderr(err):
+            code = screenshot.main([str(self.project), "https://example.com/tariffs", "--name", "tariffs"])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_without_playwright(self) -> None:
+        code, _out, err = self._run({"playwright": None, "playwright.sync_api": None})
+        self.assertEqual(code, 3)
+        self.assertIn("setup --ux", err)
+
+    def test_with_fake_playwright(self) -> None:
+        import types
+
+        class Page:
+            def goto(self, *a, **k): pass
+            def screenshot(self, path, **k): Path(path).write_bytes(b"PNG")
+            def inner_text(self, selector): return "Тариф 299 ₽ в месяц"
+
+        class Browser:
+            def new_page(self, **k): return Page()
+            def close(self): pass
+
+        class Ctx:
+            chromium = types.SimpleNamespace(launch=lambda: Browser())
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        sync_api = types.ModuleType("playwright.sync_api")
+        sync_api.sync_playwright = lambda: Ctx()
+        package = types.ModuleType("playwright")
+        package.sync_api = sync_api
+        code, out, err = self._run({"playwright": package, "playwright.sync_api": sync_api})
+        self.assertEqual(code, 0, err)
+        screens = self.project / "materials" / "screens"
+        self.assertEqual((screens / "tariffs.png").read_bytes(), b"PNG")
+        self.assertIn("Тариф 299 ₽", (screens / "tariffs.txt").read_text(encoding="utf-8"))
+        self.assertIn("SRC-01", out)
+        sources = (self.project / "state" / "sources.md").read_text(encoding="utf-8")
+        self.assertIn("- Где: https://example.com/tariffs", sources)
+        self.assertIn("скриншот: materials/screens/tariffs.png", sources)
+
+
 if __name__ == "__main__":
     unittest.main()

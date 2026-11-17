@@ -34,7 +34,7 @@ class StrategTests(unittest.TestCase):
         return fixtures.run_script(ROOT / "strateg.py", *args, env=self.env)
 
     def test_doctor_writes_json(self) -> None:
-        fixtures.write(self.root / ".env", "API_KEY=supersecretvalue\nOTHER=1\n")
+        fixtures.write(self.root / ".env", "API_KEY=supersecretvalue\nOTHER=1\nEMPTY=\nQUOTED=\"\"\n")
         result = self._run("doctor")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Python", result.stdout)
@@ -43,7 +43,8 @@ class StrategTests(unittest.TestCase):
         payload = json.loads((self.root / "doctor.json").read_text(encoding="utf-8"))
         self.assertIn("modules", payload)
         self.assertIn("tools", payload)
-        self.assertEqual(payload["env_keys"], ["API_KEY", "OTHER"])
+        self.assertEqual(payload["env_keys"], ["API_KEY", "OTHER"])  # пустые не считаются
+        self.assertNotIn("yaml", payload["modules"])
 
     def test_new_creates_structure(self) -> None:
         self.projects.mkdir(parents=True)

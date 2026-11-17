@@ -53,7 +53,7 @@ SETTINGS_CONTENT = (
 )
 SETUP_REQUIREMENTS = ["requirements.txt"]
 
-MODULES = ["yaml", "markitdown", "trafilatura", "pandas", "faster_whisper",
+MODULES = ["markitdown", "trafilatura", "pandas", "faster_whisper",
            "scenedetect", "playwright"]
 TOOLS_IN_PATH = ["ffmpeg", "gitleaks"]
 
@@ -106,7 +106,7 @@ def _module_available(name: str) -> bool:
 
 
 def _env_keys(path: Path) -> List[str]:
-    """Имена ключей из .env (значения не читаются в вывод)."""
+    """Имена ключей из .env с непустым значением (сами значения в вывод не попадают)."""
     keys: List[str] = []
     if not path.exists():
         return keys
@@ -122,8 +122,10 @@ def _env_keys(path: Path) -> List[str]:
             line = line[len("export "):].strip()
         if "=" not in line:
             continue
-        key = line.split("=", 1)[0].strip()
-        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+        key, value = (part.strip() for part in line.split("=", 1))
+        value = value.split(" #", 1)[0].strip().strip("'\"")
+        # пустой ключ (KEY= из .env.example) не считается: doctor не должен обещать доступ
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) and value:
             keys.append(key)
     return keys
 

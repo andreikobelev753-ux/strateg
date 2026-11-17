@@ -12,6 +12,8 @@
   python3 tools/snapshot.py snapshot projects/demo S3.1
   python3 tools/snapshot.py list projects/demo
   python3 tools/snapshot.py restore projects/demo 03_S3.1_20261105-010203
+  python3 tools/snapshot.py restore projects/demo S3.1     # последний снимок этапа
+  python3 tools/snapshot.py restore projects/demo 3        # снимок номер 3
 """
 
 from __future__ import annotations
@@ -149,15 +151,37 @@ def _print_snapshots(project_dir: Any) -> None:
         )
 
 
+def resolve_snapshot(drafts: Path, name: str) -> Path:
+    """Папка снимка по полному имени, номеру («2», «02») или этапу («S2» — последний снимок этапа)."""
+    exact = drafts / name
+    if exact.is_dir():
+        return exact
+    candidates = sorted(
+        (item for item in drafts.iterdir() if item.is_dir() and NUMBER_RE.match(item.name)
+         and "before-restore" not in item.name),
+        key=lambda item: int(NUMBER_RE.match(item.name).group(1)),
+    ) if drafts.is_dir() else []
+    if name.isdigit():
+        found = [item for item in candidates if int(NUMBER_RE.match(item.name).group(1)) == int(name)]
+    else:
+        found = [item for item in candidates if _snapshot_stage(item.name).lower() == name.lower()]
+    if found:
+        return found[-1]
+    known = ", ".join(item.name for item in candidates[-5:]) or "снимков нет"
+    raise FileNotFoundError(f"снимок не найден: {name} (последние: {known})")
+
+
 def restore(project_dir: Any, snapshot_name: str) -> Tuple[Path, Path]:
-    """Восстанавливает state/ и output/ из снимка, сохраняя текущее в before-restore."""
+    """Восстанавливает state/ и output/ из снимка, сохраняя текущее в before-restore.
+
+    snapshot_name — полное имя папки в drafts/, номер снимка или этап (последний снимок этапа).
+    """
     project = Path(project_dir)
     drafts = project / "drafts"
     if not re.fullmatch(r"[^/\\]+", snapshot_name or ""):
         raise ValueError("имя снимка не должно содержать разделителей пути")
-    source = drafts / snapshot_name
-    if not source.is_dir():
-        raise FileNotFoundError(f"снимок не найден: {source}")
+    source = resolve_snapshot(drafts, snapshot_name)
+    snapshot_name = source.name
 
     number = _next_number(drafts)
     before = _unique_dir(drafts, f"{number:02d}_before-restore_{_stamp()}")
@@ -216,7 +240,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_restore = sub.add_parser("restore", help="восстановить из снимка")
     p_restore.add_argument("project_dir", help="папка проекта")
-    p_restore.add_argument("snapshot_name", help="имя снимка в drafts/")
+    p_restore.add_argument("snapshot_name", help="имя снимка в drafts/, его номер или этап (S2)")
 
     return parser
 

@@ -115,14 +115,21 @@ projects/<имя>/       ваши проекты (в git не попадают)
 
 ```
 python3 strateg.py new <имя>                 новый проект
-python3 strateg.py status [<имя>] [--brief]  состояние
+python3 strateg.py status [<имя>] [--brief] [--days 90]  состояние, просрочки, пересмотры
 python3 strateg.py extract <имя> docs|web|tables|media <файл или URL>
 python3 strateg.py check <имя>               реестры, подложенные команды, секреты
 python3 strateg.py impact <имя> SRC-03       что затронуто источником или утверждением
-python3 strateg.py snapshot <имя> <этап>     снимок
-python3 strateg.py restore <имя> <снимок>    откат
-python3 strateg.py cost <имя> [--head-in N --head-out M]
+python3 strateg.py snapshot <имя> <этап>     снимок (обновляет «Последний снимок» в state.md)
+python3 strateg.py restore <имя> <снимок>    откат: полное имя, номер (3) или этап (S3.1)
+python3 strateg.py log <имя> start|done|error|retry|fallback|skip|pause <этап> <ключ> [--note …]
+                                             событие журнала; log <имя> is-done <ключ> | pending | summary
+python3 strateg.py chart <имя> <spec.json>   график: SVG для документов и интерактивный HTML
+python3 strateg.py report <имя> [--source output/one-pager.md]   отчёт одним HTML-файлом
+python3 strateg.py cost <имя> [--head-in N --head-out M]   стоимость и активное время
+python3 strateg.py doctor                    окружение: модули, ffmpeg, непустые ключи .env
+python3 strateg.py setup [--media] [--ux]    .venv, зависимости, .claude/
 python3 strateg.py sync                      обновить копии навыков и ролей в .claude/
+python3 tools/screenshot.py projects/<имя> <URL>   снимок страницы (модуль «интерфейсы»)
 python3 -m unittest discover -s tests        тесты скриптов
 ```
 

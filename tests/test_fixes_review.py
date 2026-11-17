@@ -303,5 +303,49 @@ class ReviewItem18LastSnapshot(unittest.TestCase):
             self.assertIn("## Обновлено", text)  # следующий раздел не съеден
 
 
+class ReviewItem19DocsAndCode(unittest.TestCase):
+    """№19: README перечисляет команды; 90 дней; restore по короткому имени; пересмотры в status."""
+
+    def test_readme_lists_commands(self) -> None:
+        readme = _read("README.md")
+        for command in ("strateg.py log", "strateg.py chart", "strateg.py report", "strateg.py doctor"):
+            self.assertIn(command, readme)
+
+    def test_days_threshold_matches_skill(self) -> None:
+        import inspect
+        import strateg
+        self.assertIn("90 дней", _read("skills/followup/SKILL.md"))
+        self.assertEqual(inspect.signature(strateg.cmd_status).parameters["days"].default, 90)
+
+    def test_restore_by_stage_and_number(self) -> None:
+        import snapshot
+        with tempfile.TemporaryDirectory() as tmp:
+            project = fixtures.make_bare_project(Path(tmp))
+            with contextlib.redirect_stdout(io.StringIO()):
+                first = snapshot.create_snapshot(project, "S1")
+                second = snapshot.create_snapshot(project, "S2")
+                third = snapshot.create_snapshot(project, "S2")
+            drafts = project / "drafts"
+            self.assertEqual(snapshot.resolve_snapshot(drafts, "S1"), first)
+            self.assertEqual(snapshot.resolve_snapshot(drafts, "S2"), third)  # последний снимок этапа
+            self.assertEqual(snapshot.resolve_snapshot(drafts, "2"), second)
+            self.assertEqual(snapshot.resolve_snapshot(drafts, "02"), second)
+            self.assertEqual(snapshot.resolve_snapshot(drafts, first.name), first)
+            with self.assertRaises(FileNotFoundError):
+                snapshot.resolve_snapshot(drafts, "S9")
+            with contextlib.redirect_stdout(io.StringIO()):
+                source, _before = snapshot.restore(project, "S1")
+            self.assertEqual(source, first)
+
+    def test_status_shows_due_reviews(self) -> None:
+        import strateg
+        with tempfile.TemporaryDirectory() as tmp:
+            project = fixtures.make_project(Path(tmp))  # DEC-01: пересмотреть 2027-02-01
+            text = (project / "state" / "decisions.md").read_text(encoding="utf-8")
+            (project / "state" / "decisions.md").write_text(
+                text.replace("2027-02-01", "2026-01-01"), encoding="utf-8")
+            self.assertEqual(strateg._due_reviews(project), [("DEC-01", "2026-01-01")])
+
+
 if __name__ == "__main__":
     unittest.main()

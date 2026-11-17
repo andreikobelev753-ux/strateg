@@ -406,7 +406,26 @@ def _overdue_commitments(project: Path) -> List[Tuple[str, Dict[str, Any], int]]
     return result
 
 
-def cmd_status(name: Optional[str], brief: bool, days: int = 180) -> int:
+def _due_reviews(project: Path) -> List[Tuple[str, str]]:
+    """Действующие решения, у которых наступила дата из «Пересмотреть, если»: [(id, дата)]."""
+    if registry is None:
+        return []
+    today = date.today()
+    result: List[Tuple[str, str]] = []
+    for decision in registry.load(project)["DEC"]:
+        if decision["fields"].get("Состояние", "действует").strip() != "действует":
+            continue
+        for item in re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", decision["fields"].get("Пересмотреть, если", "")):
+            try:
+                if date.fromisoformat(item) <= today:
+                    result.append((decision["id"], item))
+                    break
+            except ValueError:
+                continue
+    return result
+
+
+def cmd_status(name: Optional[str], brief: bool, days: int = 90) -> int:
     """Показывает состояние проекта или короткую сводку."""
     if brief and not name:
         return _status_brief_all()
@@ -442,6 +461,13 @@ def cmd_status(name: Optional[str], brief: bool, days: int = 180) -> int:
         for decision_id, commitment, days_late in overdue:
             print(f"  {decision_id}: {commitment['text']} · {commitment['responsible']} · "
                   f"{commitment['date']} ({days_late} дн. просрочки)")
+    else:
+        print("  нет")
+    print("--- Решения, которые пора пересмотреть ---")
+    due = _due_reviews(project)
+    if due:
+        for decision_id, when in due:
+            print(f"  {decision_id}: дата пересмотра {when} наступила — S9, skills/revision")
     else:
         print("  нет")
     print(f"--- Устаревшие источники (старше {days} дней) ---")
@@ -555,6 +581,9 @@ def _status_brief(project: Path, name: str) -> int:
         overdue = _overdue_commitments(project)
         if overdue:
             lines.append(f"Просроченных обязательств: {len(overdue)}")
+        due = _due_reviews(project)
+        if due:
+            lines.append("Пора пересмотреть: " + ", ".join(f"{item} (с {when})" for item, when in due[:3]))
         print("\n".join(lines[:15]))
     except Exception as exc:  # noqa: BLE001 - сводка не должна падать
         print(f"Сводка недоступна: {exc}")
@@ -886,7 +915,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_status = sub.add_parser("status", help="состояние проекта или короткая сводка")
     p_status.add_argument("name", nargs="?", help="имя проекта (можно не указывать с --brief)")
     p_status.add_argument("--brief", action="store_true", help="короткая сводка до 15 строк")
-    p_status.add_argument("--days", type=int, default=180, help="порог устаревания источников")
+    p_status.add_argument("--days", type=int, default=90, help="порог устаревания источников, дней (как в skills/followup)")
 
     p_snap = sub.add_parser("snapshot", help="создать снимок")
     p_snap.add_argument("name", help="имя проекта")

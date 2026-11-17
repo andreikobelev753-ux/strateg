@@ -9,3 +9,6 @@ projects/*
 !projects/train-*/
 !projects/ds-*/
 .DS_Store
+# материалы пользователя до копирования в проект — не коммитим
+inbox/*
+!inbox/.gitkeep

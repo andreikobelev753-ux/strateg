@@ -31,5 +31,24 @@ class ReviewItem05Options(unittest.TestCase):
             self.assertIn("Варианты не близнецы", text, rel)
 
 
+class ReviewItem17Permissions(unittest.TestCase):
+    """№17: разрешения первого шага и папка inbox/."""
+
+    def test_settings_allow(self) -> None:
+        import json
+        allow = json.loads(_read(".claude/settings.json"))["permissions"]["allow"]
+        for rule in ("Bash(cp inbox/:*)", "Bash(ls:*)", "Bash(grep:*)", "WebSearch", "WebFetch",
+                     "Bash(python3 strateg.py:*)"):
+            self.assertIn(rule, allow)
+
+    def test_inbox_documented_and_ignored(self) -> None:
+        self.assertTrue((ROOT / "inbox" / ".gitkeep").is_file())
+        lines = _read(".gitignore").splitlines()
+        self.assertIn("inbox/*", lines)
+        self.assertIn("!inbox/.gitkeep", lines)
+        self.assertIn("inbox/", _read("README.md"))
+        self.assertIn("cp inbox/", _read("skills/intake/SKILL.md"))
+
+
 if __name__ == "__main__":
     unittest.main()

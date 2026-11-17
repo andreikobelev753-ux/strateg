@@ -66,14 +66,36 @@ def _snapshot_stage(name: str) -> str:
     return "restore"
 
 
+LAST_SNAPSHOT_RE = re.compile(r"(?ms)^(##\s*Последний снимок\s*\n)(.*?)(?=^##\s|\Z)")
+
+
+def update_last_snapshot(project_dir: Any, value: str) -> bool:
+    """Пишет значение раздела «## Последний снимок» в state/state.md, если раздел есть."""
+    state_md = Path(project_dir) / "state" / "state.md"
+    if not state_md.exists():
+        return False
+    text = state_md.read_text(encoding="utf-8", errors="replace")
+    if not LAST_SNAPSHOT_RE.search(text):
+        return False  # раздела нет (старый формат) — state.md не трогаем
+    text = LAST_SNAPSHOT_RE.sub(lambda m: f"{m.group(1)}{value}\n\n", text, count=1)
+    state_md.write_text(text, encoding="utf-8")
+    return True
+
+
 def create_snapshot(project_dir: Any, stage: str) -> Path:
-    """Создаёт снимок state/ и output/ и возвращает путь к нему."""
+    """Создаёт снимок state/ и output/ и возвращает путь к нему.
+
+    Перед копированием обновляет «Последний снимок» в state.md, чтобы поле не устаревало.
+    """
     project = Path(project_dir)
     drafts = project / "drafts"
     drafts.mkdir(parents=True, exist_ok=True)
     number = _next_number(drafts)
     target = _unique_dir(drafts, f"{number:02d}_{stage}_{_stamp()}")
     target.mkdir(parents=True)
+    when = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M")
+    update_last_snapshot(project, f"{target.name} (этап {stage}, {when}); всего снимков: "
+                                  f"{sum(1 for item in drafts.iterdir() if NUMBER_RE.match(item.name) and 'before-restore' not in item.name)}")
     for name in ("state", "output"):
         source = project / name
         destination = target / name

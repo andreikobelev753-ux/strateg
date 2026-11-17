@@ -283,5 +283,25 @@ class ReviewItem16SourceLists(unittest.TestCase):
         self.assertEqual(self.project.joinpath("state", "journal.jsonl").read_text(encoding="utf-8"), "")
 
 
+class ReviewItem18LastSnapshot(unittest.TestCase):
+    """№18: snapshot обновляет «Последний снимок» в state.md."""
+
+    def test_snapshot_updates_state(self) -> None:
+        import shutil
+        import snapshot
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "demo"
+            shutil.copytree(ROOT / "projects" / "_template", project)
+            with contextlib.redirect_stdout(io.StringIO()):
+                snapshot.create_snapshot(project, "S1")
+                second = snapshot.create_snapshot(project, "S2")
+            text = (project / "state" / "state.md").read_text(encoding="utf-8")
+            section = text.split("## Последний снимок", 1)[1].split("##", 1)[0]
+            self.assertIn(second.name, section)
+            self.assertIn("всего снимков: 2", section)
+            self.assertNotIn("_S1_", section)
+            self.assertIn("## Обновлено", text)  # следующий раздел не съеден
+
+
 if __name__ == "__main__":
     unittest.main()

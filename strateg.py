@@ -10,7 +10,7 @@
   snapshot <name> <stage>, restore <name> <snapshot>, impact <name> <id>, log <name> ...
                       — вызовы tools/journal.py, tools/snapshot.py, tools/registry.py;
   setup [--media] [--ux] [--dry-run] — подготовить окружение;
-  cost <name>         — отчёт о стоимости из журнала (tools/cost.py);
+  cost <name>         — отчёт о стоимости: транскрипты Claude Code + журнал (tools/cost.py);
   chart <name> <spec.json> — график: SVG для документов и интерактивный HTML (tools/chart.py);
   report <name>       — отчёт одним HTML-файлом: одностраничник с графиками (tools/report.py);
   extract-скрипты     — tools/extract/{docs,web,tables,media}.py.
@@ -64,6 +64,10 @@ try:
     import journal  # type: ignore
 except ImportError:  # pragma: no cover - на случай запуска из другого каталога
     registry = scan = journal = None  # type: ignore
+try:
+    import cost  # type: ignore
+except ImportError:  # pragma: no cover
+    cost = None  # type: ignore
 
 
 def _now() -> str:
@@ -277,6 +281,7 @@ def cmd_new(name: str) -> int:
         payload: Dict[str, Any] = {
             "name": name,
             "created": today,
+            "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
             "request": "",
             "question": "",
             "goal": "",
@@ -449,31 +454,60 @@ def cmd_status(name: Optional[str], brief: bool, days: int = 180) -> int:
     return 0
 
 
-def _progress_line(project: Path) -> str:
-    """Строка для прогресса: время с первого шага и доля бюджета, которую видит журнал.
-
-    Журнал знает только токены вспомогательных моделей; головную модель считает среда.
-    """
-    if journal is None:
-        return ""
-    data = journal.summary(project)
-    firsts = [item["first"] for item in data["stages"] if item["first"] is not None]
-    lasts = [item["last"] for item in data["stages"] if item["last"] is not None]
-    if not firsts:
-        return ""
-    minutes = int((max(lasts) - min(firsts)).total_seconds() // 60)
-    elapsed = f"{minutes // 60} ч {minutes % 60} мин" if minutes >= 60 else f"{minutes} мин"
-    helper = data["totals"]["tokens_in"] + data["totals"]["tokens_out"]
-    budget = 0
+def _mode_budget(project: Path) -> Tuple[str, int, float]:
+    """Режим проекта, бюджет токенов и порог предупреждения из config/modes.json."""
     try:
         mode = json.loads((project / "project.json").read_text(encoding="utf-8")).get("mode", "")
-        budget = int(json.loads((AGENT_ROOT / "config" / "modes.json").read_text(encoding="utf-8"))
-                     .get(mode, {}).get("token_budget", 0))
-    except (OSError, ValueError, AttributeError):
-        pass
-    share = f" ({helper / budget:.0%} бюджета режима)" if budget else ""
-    return (f"Идёт: {elapsed} с первого шага · вспомогательные модели: {helper:,} ток.{share}"
-            .replace(",", " ") + " · головную модель считает среда")
+        settings = json.loads((AGENT_ROOT / "config" / "modes.json").read_text(encoding="utf-8")).get(mode, {})
+        return str(mode), int(settings.get("token_budget", 0)), float(settings.get("warn_at", 0.8))
+    except (OSError, ValueError, AttributeError, TypeError):
+        return "", 0, 0.8
+
+
+def _elapsed(seconds: int) -> str:
+    minutes = int(seconds // 60)
+    return f"{minutes // 60} ч {minutes % 60} мин" if minutes >= 60 else f"{minutes} мин"
+
+
+def _progress_line(project: Path) -> str:
+    """Строка прогресса: активное время и «бюджет ≈ X%».
+
+    Расход головной модели и субагентов — из транскриптов Claude Code (tools/cost.py),
+    вспомогательных моделей — из журнала. Правило AGENTS.md: на warn_at (80%)
+    предупредить, на 100% остановиться и спросить.
+    """
+    helper = 0
+    journal_stamps: List[datetime] = []
+    if journal is not None:
+        data = journal.summary(project)
+        helper = data["totals"]["tokens_in"] + data["totals"]["tokens_out"]
+        journal_stamps = [stamp for item in data["stages"] for stamp in (item["first"], item["last"])
+                          if stamp is not None]
+    usage = None
+    if cost is not None:
+        try:
+            usage = cost.head_usage(project, AGENT_ROOT)
+        except Exception:  # noqa: BLE001 - сводка не должна падать
+            usage = None
+    if usage is None and not journal_stamps:
+        return "Бюджет: оценка недоступна — транскрипт Claude Code не найден, журнал пуст"
+    _mode, budget, warn_at = _mode_budget(project)
+    if usage is not None:
+        elapsed = f"активно {_elapsed(usage['active_seconds'])}"
+        spent = usage["budget_tokens"] + helper
+        share = spent / budget if budget else None
+        money = f" · ≈ ${usage['cost']:.2f} по ценам API"
+        if budget and share is not None:
+            line = f"Идёт: {elapsed} · бюджет ≈ {share:.0%} ({spent:,} из {budget:,} ток.){money}".replace(",", " ")
+            if share >= 1:
+                line += "\n⛔ Бюджет режима исчерпан: остановитесь и спросите пользователя, продолжать ли."
+            elif share >= warn_at:
+                line += f"\n⚠ Израсходовано {share:.0%} бюджета режима: предупредите пользователя."
+            return line
+        return f"Идёт: {elapsed} · расход {spent:,} ток.{money} · режим не выбран — бюджета нет".replace(",", " ")
+    seconds = int((max(journal_stamps) - min(journal_stamps)).total_seconds())
+    return (f"Идёт: {_elapsed(seconds)} с первого шага · вспомогательные модели: {helper:,} ток."
+            .replace(",", " ") + " · бюджет: оценка недоступна (нет транскрипта Claude Code)")
 
 
 STAGE_ORDER = ["S0", "S1", "S2", "S3.0", "S3.1", "S3.2", "S4", "S5", "S6", "S7", "S8", "S9"]

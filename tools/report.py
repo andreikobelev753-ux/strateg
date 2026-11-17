@@ -39,6 +39,9 @@ STATUS_CLASSES = {"факт": ("st-fact", 0), "вывод": ("st-concl", 6), "г
 STATUS_RE = re.compile(r"\[(факт|вывод|гипотеза|прогноз|синтетика|пробел)([^\[\]]{0,240})\]", re.IGNORECASE)
 
 REPORT_CSS = (
+    "sup.fn{font-size:11px;margin-left:1px}sup.fn a{text-decoration:none}"
+    ".footnotes{margin-top:18px;border-top:1px solid var(--p-muted);padding-top:6px;font-size:13px;color:var(--p-muted)}"
+    ".footnotes h3{font-size:13px;margin:4px 0}.fn-def{margin:2px 0}.more{font-size:13px;color:var(--p-muted)}"
     ".top .tools{display:flex;gap:8px;justify-content:flex-end}"
     ".kicker{margin:10px 0 6px;color:var(--p-muted);font-size:13px}"
     ".prog{display:flex;align-items:center;gap:12px;margin:6px 0 10px}"
@@ -97,6 +100,38 @@ def read_stage(project: Path) -> int:
     return stage_index(match.group(1) if match else text[:400])
 
 
+FOOTNOTE_REF_RE = re.compile(r"\[\^(\w{1,12})\](?!:)")
+FOOTNOTE_DEF_RE = re.compile(r"^\[\^(\w{1,12})\]:\s*(.*)$")
+ONE_PAGER_WORDS = 250
+ONE_PAGER_CHARTS = 2
+
+
+def one_pager_problems(text: str) -> List[str]:
+    """Проверка одностраничника: до 250 слов, до 2 графиков, номера CLM/SRC — только в сносках."""
+    body: List[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if FOOTNOTE_DEF_RE.match(stripped) or stripped.startswith("Подробно:"):
+            continue
+        body.append(stripped)
+    joined = "\n".join(body)
+    charts = re.findall(r"!\[[^\]]*\]\([^)]+\)", joined)
+    plain = re.sub(r"!\[[^\]]*\]\([^)]+\)", " ", joined)
+    plain = FOOTNOTE_REF_RE.sub(" ", plain)
+    plain = STATUS_RE.sub(" ", plain)
+    words = re.findall(r"[0-9A-Za-zА-Яа-яЁё]+(?:[-–,.][0-9A-Za-zА-Яа-яЁё]+)*", plain)
+    problems: List[str] = []
+    if len(words) > ONE_PAGER_WORDS:
+        problems.append(f"одностраничник: {len(words)} слов, нужно до {ONE_PAGER_WORDS} — сократите")
+    if len(charts) > ONE_PAGER_CHARTS:
+        problems.append(f"одностраничник: графиков {len(charts)}, нужно до {ONE_PAGER_CHARTS}")
+    ids = sorted(set(re.findall(r"\b(?:CLM|SRC|DEC)-\d+\b", "\n".join(body))))
+    if ids:
+        shown = ", ".join(ids[:5]) + (" …" if len(ids) > 5 else "")
+        problems.append(f"одностраничник: номера в тексте ({shown}) — перенесите в сноски [^1]")
+    return problems
+
+
 def _link(label: str, url: str) -> str:
     if re.match(r"^(https?://|[\w./#%-]+$)", url) and not url.lower().startswith("javascript"):
         return f'<a href="{url}">{label}</a>'
@@ -124,6 +159,7 @@ def inline(text: str) -> str:
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"(?<![\w*])\*(?![\s*])(.+?)(?<![\s*])\*(?![\w*])", r"<em>\1</em>", text)
     text = STATUS_RE.sub(_chip, text)
+    text = FOOTNOTE_REF_RE.sub(lambda m: f'<sup class="fn"><a href="#fn-{m.group(1)}">{m.group(1)}</a></sup>', text)
     return re.sub("\x00(\\d+)\x00", lambda m: f"<code>{html.escape(codes[int(m.group(1))])}</code>", text)
 
 
@@ -179,6 +215,7 @@ def md_to_html(text: str, charts: Dict[str, Dict[str, Any]], used: Set[str]) -> 
     lines = text.splitlines()
     out: List[str] = []
     para: List[str] = []
+    notes: List[str] = []
 
     def flush() -> None:
         if para:
@@ -190,6 +227,13 @@ def md_to_html(text: str, charts: Dict[str, Dict[str, Any]], used: Set[str]) -> 
         stripped = lines[index].strip()
         if not stripped:
             flush()
+            index += 1
+            continue
+        footnote = FOOTNOTE_DEF_RE.match(stripped)
+        if footnote:
+            flush()
+            notes.append(f'<p class="fn-def" id="fn-{footnote.group(1)}"><sup>{footnote.group(1)}</sup> '
+                         f"{inline(footnote.group(2))}</p>")
             index += 1
             continue
         image = re.fullmatch(r"!\[([^\]]*)\]\(([^)\s]+)\)", stripped)
@@ -238,6 +282,8 @@ def md_to_html(text: str, charts: Dict[str, Dict[str, Any]], used: Set[str]) -> 
             para.append(stripped)
         index += 1
     flush()
+    if notes:
+        out.append('<section class="footnotes"><h3>Основания</h3>' + "".join(notes) + "</section>")
     return "\n".join(out)
 
 
@@ -259,7 +305,11 @@ def build_report(project: Path, source: Path) -> str:
     used: Set[str] = set()
     body = md_to_html(markdown, charts, used)
     rest = [chart_key for chart_key in sorted(charts) if chart_key not in used]
-    if rest:
+    if rest and source.name == "one-pager.md":
+        # одностраничник остаётся одной страницей: остальные графики — ссылками
+        body += ('\n<p class="more">Другие графики: ' + " · ".join(
+            f'<a href="charts/{html.escape(key)}.html">{html.escape(key)}</a>' for key in rest) + "</p>")
+    elif rest:
         body += "\n<h2>Графики</h2>\n" + "\n".join(chart.card_html(charts[key]) for key in rest)
     title_match = re.search(r"(?m)^#\s+(.+)$", markdown)
     title = re.sub(r"[*`\[\]]", "", title_match.group(1)).strip() if title_match else project.name
@@ -304,6 +354,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     target = project / "output" / "report.html"
     target.write_text(build_report(project, source), encoding="utf-8")
     print(f"Отчёт: {target}")
+    if source.name == "one-pager.md":
+        for problem in one_pager_problems(source.read_text(encoding="utf-8", errors="replace")):
+            print(f"Внимание: {problem}")
     print("Показать пользователю: отправьте файл (если среда умеет) или откройте его "
           "(macOS: open, Windows: start, Linux: xdg-open). Печать в PDF — кнопкой «Печать».")
     return 0

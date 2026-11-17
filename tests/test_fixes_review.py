@@ -142,5 +142,33 @@ class ReviewItem12Baseline(unittest.TestCase):
             self.assertIn("база сравнения", text, rel)
 
 
+class ReviewItem13OnePager(unittest.TestCase):
+    """№13+№14: одностраничник до 250 слов и 2 графиков, номера в сносках; чат до 15 строк."""
+
+    def test_rules_in_texts(self) -> None:
+        self.assertIn("до 250 слов", _read("templates/one-pager.md"))
+        self.assertIn("[^1]:", _read("templates/one-pager.md"))
+        self.assertIn("до 15 строк", _read("AGENTS.md"))
+        self.assertNotIn("3–8 строк", _read("AGENTS.md"))
+
+    def test_one_pager_problems(self) -> None:
+        import report
+        good = "# Т\n\n**Ответ.** Чинить Android [вывод][^1]\n\n![a](charts/a.svg)\n\n[^1]: CLM-012, SRC-03\n"
+        self.assertEqual(report.one_pager_problems(good), [])
+        long_text = "# Т\n\n" + " ".join(["слово"] * 260) + "\n"
+        self.assertTrue(any("слов, нужно до 250" in p for p in report.one_pager_problems(long_text)))
+        charts = "\n".join(f"![{i}](charts/{i}.svg)" for i in range(3))
+        self.assertTrue(any("графиков 3" in p for p in report.one_pager_problems(charts)))
+        inline_ids = "Платят 810 (CLM-064) [факт, SRC-03]"
+        self.assertTrue(any("CLM-064" in p for p in report.one_pager_problems(inline_ids)))
+
+    def test_footnotes_render(self) -> None:
+        import report
+        html = report.md_to_html("Текст[^1]\n\n[^1]: CLM-012", {}, set())
+        self.assertIn('<sup class="fn"><a href="#fn-1">1</a></sup>', html)
+        self.assertIn('id="fn-1"', html)
+        self.assertNotIn("[^1]", html)
+
+
 if __name__ == "__main__":
     unittest.main()

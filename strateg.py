@@ -648,6 +648,18 @@ def cmd_check(name: str) -> int:
         print(f"  Найдено: {len(tags)}")
     else:
         print("  Ошибок нет.")
+    one_pager = project / "output" / "one-pager.md"
+    if one_pager.is_file():
+        print("--- Одностраничник (до 250 слов, до 2 графиков, номера в сносках) ---")
+        try:
+            import report  # type: ignore
+            notes = report.one_pager_problems(one_pager.read_text(encoding="utf-8", errors="replace"))
+        except Exception as exc:  # noqa: BLE001 - предупреждение не должно ронять check
+            notes = [f"не проверен: {exc}"]
+        for note in notes:
+            print(f"  Внимание: {note}")
+        if not notes:
+            print("  Ок.")
     failed = bool(problems) or bool(secrets) or bool(pii) or bool(tags)
     print(f"Итог: реестры — {'проблемы' if problems else 'ок'}, "
           f"материалы — {len(materials)} предупрежд., "
